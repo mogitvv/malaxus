@@ -29,6 +29,7 @@ export interface Product {
   stockQuantity: number | null;
   lowStockThreshold: number | null;
   isHidden?: boolean;
+  imageUrl?: string | null;
 }
 
 export interface OrderItem {

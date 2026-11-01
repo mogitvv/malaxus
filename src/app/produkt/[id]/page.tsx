@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { notFound } from "next/navigation";
-import { categories, getProductById } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/server";
+import { mapCategory, mapProduct } from "@/lib/products";
 import { unitLabels } from "@/lib/types";
 import { InventorySlot } from "@/components/ui/InventorySlot";
 import { ProductIcon } from "@/components/icons/ProductIcon";
@@ -13,10 +14,17 @@ interface ProductPageProps {
 
 export default async function ProductPage({ params }: ProductPageProps): Promise<JSX.Element> {
   const { id } = await params;
-  const product = getProductById(id);
-  if (!product) notFound();
+  const supabase = await createClient();
 
-  const category = categories.find((c) => c.id === product.categoryId);
+  const { data: productRow } = await supabase.from("products").select("*").eq("id", id).single();
+  if (!productRow) notFound();
+  const product = mapProduct(productRow);
+
+  const { data: categoryRow } = product.categoryId
+    ? await supabase.from("categories").select("*").eq("id", product.categoryId).single()
+    : { data: null };
+  const category = categoryRow ? mapCategory(categoryRow) : null;
+
   const lowStock =
     product.type === "stock" &&
     product.lowStockThreshold != null &&
@@ -26,7 +34,12 @@ export default async function ProductPage({ params }: ProductPageProps): Promise
   return (
     <div className="mc-panel p-6 flex flex-col sm:flex-row gap-6 max-w-3xl">
       <InventorySlot size={128} className="mx-auto sm:mx-0">
-        <ProductIcon name={product.name} size={72} />
+        {product.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+        ) : (
+          <ProductIcon name={product.name} size={72} />
+        )}
       </InventorySlot>
 
       <div className="flex flex-col gap-3 flex-1">

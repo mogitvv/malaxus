@@ -10,13 +10,22 @@ import { useAuth } from "@/lib/auth-context";
 export default function LoginPage(): JSX.Element {
   const router = useRouter();
   const { login } = useAuth();
-  const [demoRole, setDemoRole] = useState<"customer" | "admin">("customer");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    // Demo: hier kommt später der echte Login gegen die Datenbank (Supabase Auth).
-    login(demoRole, demoRole === "admin" ? "Mogi" : "Mogi");
-    router.push(demoRole === "admin" ? "/admin" : "/konto");
+    setError(null);
+    setSubmitting(true);
+    const result = await login(email, password);
+    setSubmitting(false);
+    if (result.error) {
+      setError(result.error === "Invalid login credentials" ? "E-Mail oder Passwort falsch." : result.error);
+      return;
+    }
+    router.push("/konto");
   }
 
   return (
@@ -26,41 +35,31 @@ export default function LoginPage(): JSX.Element {
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="text-sm font-semibold">
             E-Mail
-            <input type="email" required className="input-mc mt-1" placeholder="du@example.com" />
+            <input
+              type="email"
+              required
+              className="input-mc mt-1"
+              placeholder="du@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </label>
           <label className="text-sm font-semibold">
             Passwort
-            <input type="password" required className="input-mc mt-1" placeholder="••••••••" />
+            <input
+              type="password"
+              required
+              className="input-mc mt-1"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </label>
 
-          <div className="border rounded p-2 mt-1" style={{ background: "var(--mc-subtle)", borderColor: "var(--mc-subtle-strong)" }}>
-            <p className="text-[10px] text-[var(--mc-text-muted)] mb-1">
-              Demo ohne Backend – wie soll der Login dich anmelden?
-            </p>
-            <div className="flex gap-3 text-xs">
-              <label className="flex items-center gap-1">
-                <input
-                  type="radio"
-                  name="demoRole"
-                  checked={demoRole === "customer"}
-                  onChange={() => setDemoRole("customer")}
-                />
-                Als Kunde
-              </label>
-              <label className="flex items-center gap-1">
-                <input
-                  type="radio"
-                  name="demoRole"
-                  checked={demoRole === "admin"}
-                  onChange={() => setDemoRole("admin")}
-                />
-                Als Admin
-              </label>
-            </div>
-          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
 
-          <Button variant="green" type="submit" className="mt-2">
-            Einloggen
+          <Button variant="green" type="submit" className="mt-2" disabled={submitting}>
+            {submitting ? "Einloggen…" : "Einloggen"}
           </Button>
         </form>
         <p className="text-xs mt-4 text-center text-muted">

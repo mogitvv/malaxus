@@ -35,7 +35,12 @@ export function ProductCard({ product }: { product: Product }): JSX.Element {
           badge={product.type === "stock" ? product.stockQuantity : "?"}
           overlay={soldOut ? <span className="font-pixel text-[9px] text-red-400">Ausverkauft</span> : undefined}
         >
-          <ProductIcon name={product.name} size={40} />
+          {product.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+          ) : (
+            <ProductIcon name={product.name} size={40} />
+          )}
         </InventorySlot>
         <h3 className="text-sm font-semibold text-center leading-tight">{product.name}</h3>
         <p className="text-[11px] text-center text-muted line-clamp-2">{product.description}</p>

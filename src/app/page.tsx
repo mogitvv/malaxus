@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { JSX } from "react";
-import { categories, products } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/server";
+import { mapCategory, mapProduct } from "@/lib/products";
 import { ProductCard } from "@/components/shop/ProductCard";
 
 interface ShopPageProps {
@@ -11,8 +12,16 @@ export default async function ShopPage({ searchParams }: ShopPageProps): Promise
   const { q = "", cat = "" } = await searchParams;
   const query = q.trim().toLowerCase();
 
+  const supabase = await createClient();
+  const [{ data: categoryRows }, { data: productRows }] = await Promise.all([
+    supabase.from("categories").select("*").order("name"),
+    supabase.from("products").select("*").eq("is_hidden", false).order("name"),
+  ]);
+
+  const categories = (categoryRows ?? []).map(mapCategory);
+  const products = (productRows ?? []).map(mapProduct);
+
   const visible = products.filter((p) => {
-    if (p.isHidden) return false;
     if (cat && p.categoryId !== cat) return false;
     if (query && !`${p.name} ${p.description}`.toLowerCase().includes(query)) return false;
     return true;

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type JSX } from "react";
-import { categories as initialCategories, mockOrders, mockUsers, products as initialProducts } from "@/lib/mock-data";
-import type { Order, OrderStatus } from "@/lib/types";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import type { Category, Order, OrderStatus, Product } from "@/lib/types";
 import { statusLabels } from "@/lib/types";
+import { mapOrder } from "@/lib/orders";
+import { mapCategory, mapProduct } from "@/lib/products";
 import { Panel } from "@/components/ui/Panel";
 import { OrderBoard } from "./OrderBoard";
 import { ProductManager } from "./ProductManager";
@@ -12,28 +13,95 @@ import { UserManager } from "./UserManager";
 import { PaymentManager } from "./PaymentManager";
 import { BellIcon, ChestIcon, AnvilIcon, MinecartIcon, CheckIcon, XMarkIcon } from "@/components/icons/PixelIcons";
 import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@/lib/supabase/client";
 
 type Tab = "bestellungen" | "produkte" | "zahlung" | "benutzer";
 
-const demoNames = ["Creepy4Life", "RedstoneRex", "PixelPaula", "Blocky_Ben"];
-const AUTO_REFRESH_MS = 3000;
+const ORDER_SELECT = "*, order_items(*), profiles(ingame_name)";
 
 export default function AdminPage(): JSX.Element {
   const { role } = useAuth();
+  const [supabase] = useState(() => createClient());
   const [tab, setTab] = useState<Tab>("bestellungen");
-  const [orders, setOrders] = useState<Order[]>(mockOrders);
-  const [products, setProducts] = useState(initialProducts);
-  const [users, setUsers] = useState(mockUsers);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [newBadge, setNewBadge] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const knownOrderIds = useRef<Set<string>>(new Set());
 
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+
+  const playBeep = useCallback(() => {
+    if (!soundEnabled) return;
+    try {
+      const ctx = audioCtxRef.current ?? new AudioContext();
+      audioCtxRef.current = ctx;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.value = 0.05;
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch {
+      // Audio evtl. vom Browser blockiert – kein Problem, Toast reicht dann.
+    }
+  }, [soundEnabled]);
+
+  const loadOrders = useCallback(async () => {
+    const { data } = await supabase.from("orders").select(ORDER_SELECT).order("created_at", { ascending: false });
+    if (!data) return;
+    const mapped = data.map(mapOrder);
+
+    // Neue Bestellungen seit dem letzten Laden erkennen (für Glocke/Sound/Toast).
+    if (knownOrderIds.current.size > 0) {
+      const fresh = mapped.filter((o) => !knownOrderIds.current.has(o.id));
+      if (fresh.length > 0) {
+        setNewBadge((n) => n + fresh.length);
+        setToast(`Neue Bestellung von ${fresh[0].ingameName}!`);
+        playBeep();
+        setTimeout(() => setToast(null), 4000);
+      }
+    }
+    knownOrderIds.current = new Set(mapped.map((o) => o.id));
+
+    setOrders(mapped);
+    setLastUpdated(new Date());
+  }, [supabase, playBeep]);
+
+  const loadProducts = useCallback(async () => {
+    const { data } = await supabase.from("products").select("*").order("name");
+    if (data) setProducts(data.map(mapProduct));
+  }, [supabase]);
+
+  useEffect(() => {
+    if (role !== "admin") return;
+
+    supabase
+      .from("categories")
+      .select("*")
+      .order("name")
+      .then(({ data }) => data && setCategories(data.map(mapCategory)));
+    loadProducts();
+    loadOrders();
+
+    const channel = supabase
+      .channel("admin-orders")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => loadOrders())
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => loadOrders())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [role, supabase, loadOrders, loadProducts]);
 
   const counts = useMemo(() => {
     const base: Record<OrderStatus, number> = {
@@ -54,17 +122,6 @@ export default function AdminPage(): JSX.Element {
     [orders],
   );
 
-  // Simuliert live Daten, bis echtes Polling/Realtime via Supabase angebunden ist.
-  useEffect(() => {
-    setLastUpdated(new Date());
-    const interval = setInterval(() => {
-      setRefreshing(true);
-      setLastUpdated(new Date());
-      setTimeout(() => setRefreshing(false), 400);
-    }, AUTO_REFRESH_MS);
-    return () => clearInterval(interval);
-  }, []);
-
   if (role !== "admin") {
     return (
       <Panel className="max-w-sm mx-auto text-center flex flex-col gap-3">
@@ -76,51 +133,23 @@ export default function AdminPage(): JSX.Element {
     );
   }
 
-  function updateOrder(next: Order) {
+  async function persistOrder(next: Order) {
     setOrders((prev) => prev.map((o) => (o.id === next.id ? next : o)));
-  }
-
-  function playBeep() {
-    if (!soundEnabled) return;
-    try {
-      const ctx = audioCtxRef.current ?? new AudioContext();
-      audioCtxRef.current = ctx;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.value = 880;
-      gain.gain.value = 0.05;
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.12);
-    } catch {
-      // Audio evtl. vom Browser blockiert – kein Problem, Toast reicht dann.
-    }
-  }
-
-  function simulateNewOrder() {
-    const name = demoNames[Math.floor(Math.random() * demoNames.length)];
-    const order: Order = {
-      id: `o-sim-${Date.now()}`,
-      ingameName: name,
-      items: [{ productId: "p-redstonestaub", name: "Redstone-Staub", quantity: 1, unitPriceDiamonds: 2 }],
-      totalDiamonds: 2,
-      status: "received",
-      paid: false,
-      createdAt: new Date().toISOString(),
-    };
-    setOrders((prev) => [order, ...prev]);
-    setNewBadge((n) => n + 1);
-    setToast(`Neue Bestellung von ${name}!`);
-    playBeep();
-    setTimeout(() => setToast(null), 4000);
+    await supabase
+      .from("orders")
+      .update({
+        status: next.status,
+        estimated_delivery: next.estimatedDelivery ?? null,
+        admin_message: next.adminMessage ?? null,
+        paid: next.paid,
+        reminder_sent_at: next.reminderSentAt ?? null,
+      })
+      .eq("id", next.id);
   }
 
   function handleRefresh() {
     setRefreshing(true);
-    setTimeout(() => {
-      setLastUpdated(new Date());
-      setRefreshing(false);
-    }, 500);
+    loadOrders().finally(() => setRefreshing(false));
   }
 
   function focusStatus(status: OrderStatus | "all") {
@@ -171,7 +200,7 @@ export default function AdminPage(): JSX.Element {
             <span className={refreshing ? "inline-block animate-spin" : ""}>⟳</span>
             Aktualisieren
           </button>
-          <span className="text-[10px] text-[var(--mc-text-muted)] hidden sm:inline">
+          <span className="text-[10px] text-muted hidden sm:inline">
             Stand: {lastUpdated ? lastUpdated.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "–"}
           </span>
           <label className="flex items-center gap-1 text-xs">
@@ -191,9 +220,6 @@ export default function AdminPage(): JSX.Element {
               </span>
             )}
           </button>
-          <button type="button" className="btn-mc btn-mc-blue text-[10px]" onClick={simulateNewOrder}>
-            Test-Bestellung simulieren
-          </button>
         </div>
       </div>
 
@@ -206,7 +232,7 @@ export default function AdminPage(): JSX.Element {
           >
             {tile.icon}
             <span className="text-xl font-bold leading-none">{tile.count}</span>
-            <span className="text-[9px] text-center text-[var(--mc-text-muted)] leading-tight">{tile.label}</span>
+            <span className="text-[9px] text-center text-muted leading-tight">{tile.label}</span>
           </button>
         ))}
       </div>
@@ -216,7 +242,7 @@ export default function AdminPage(): JSX.Element {
           <button
             key={key}
             className={`font-pixel text-[10px] px-4 py-2 rounded transition-colors relative ${
-              tab === key ? "bg-[var(--mc-gold-dark)] text-white shadow" : "text-[var(--mc-text-muted)] hover:text-[var(--mc-text)]"
+              tab === key ? "bg-[var(--mc-gold-dark)] text-white shadow" : "text-muted hover:text-[var(--mc-text)]"
             }`}
             onClick={() => setTab(key)}
           >
@@ -233,7 +259,7 @@ export default function AdminPage(): JSX.Element {
       {tab === "bestellungen" && (
         <OrderBoard
           orders={orders}
-          onChange={updateOrder}
+          onChange={persistOrder}
           view={view}
           setView={setView}
           search={search}
@@ -242,11 +268,9 @@ export default function AdminPage(): JSX.Element {
           setStatusFilter={setStatusFilter}
         />
       )}
-      {tab === "produkte" && (
-        <ProductManager products={products} categories={initialCategories} onChange={setProducts} />
-      )}
-      {tab === "zahlung" && <PaymentManager orders={orders} onChange={updateOrder} />}
-      {tab === "benutzer" && <UserManager users={users} onChange={setUsers} />}
+      {tab === "produkte" && <ProductManager products={products} categories={categories} onChange={setProducts} />}
+      {tab === "zahlung" && <PaymentManager orders={orders} onChange={persistOrder} />}
+      {tab === "benutzer" && <UserManager />}
     </div>
   );
 }
