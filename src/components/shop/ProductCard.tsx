@@ -23,7 +23,7 @@ export function ProductCard({ product }: { product: Product }): JSX.Element {
         unit: product.unit,
         amount: product.amount,
       },
-      1,
+      product.amount,
     );
     if (!result.ok) {
       setError(result.reason ?? "Konnte nicht hinzugefügt werden.");

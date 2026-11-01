@@ -6,9 +6,11 @@ import type { JSX, ReactNode } from "react";
 export interface CartItem {
   productId: string;
   name: string;
+  /** Preis in Diamanten für "amount" Stück (z. B. 1 für "1 Diamant pro 10 Stück"). */
   unitPriceDiamonds: number;
   unit: string;
   amount: number;
+  /** Echte Stückzahl (nicht Anzahl Bündel) – wird 1:1 vom Lagerbestand abgezogen. */
   quantity: number;
 }
 
@@ -98,7 +100,7 @@ export function CartProvider({ children }: { children: ReactNode }): JSX.Element
   }
 
   const totalDiamonds = useMemo(
-    () => items.reduce((sum, i) => sum + i.unitPriceDiamonds * i.quantity, 0),
+    () => items.reduce((sum, i) => sum + (i.unitPriceDiamonds / i.amount) * i.quantity, 0),
     [items],
   );
   const totalCount = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);

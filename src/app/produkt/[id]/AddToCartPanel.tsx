@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/Button";
 export function AddToCartPanel({ product }: { product: Product }): JSX.Element {
   const { addItem } = useCart();
   const router = useRouter();
-  const [quantity, setQuantity] = useState(1);
+  const step = Math.max(1, product.amount);
+  const [quantity, setQuantity] = useState(step);
   const [added, setAdded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const soldOut = product.type === "stock" && (product.stockQuantity ?? 0) <= 0;
-  const maxQuantity = soldOut || product.type === "on_request" ? 99 : Math.max(product.stockQuantity ?? 0, 0);
+  const maxQuantity =
+    soldOut || product.type === "on_request" ? step * 999 : Math.max(product.stockQuantity ?? 0, 0);
 
   function handleAdd() {
     const result = addItem(
@@ -44,11 +46,14 @@ export function AddToCartPanel({ product }: { product: Product }): JSX.Element {
         </p>
       )}
 
+      {step > 1 && (
+        <p className="text-[11px] text-muted">Wird in Schritten von {step} {product.unit} gekauft.</p>
+      )}
       <div className="flex items-center gap-2">
         <button
           type="button"
           className="btn-mc px-3"
-          onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+          onClick={() => setQuantity((q) => Math.max(step, q - step))}
         >
           −
         </button>
@@ -56,14 +61,19 @@ export function AddToCartPanel({ product }: { product: Product }): JSX.Element {
           type="number"
           className="input-mc w-20 text-center"
           value={quantity}
-          min={1}
+          min={step}
+          step={step}
           max={maxQuantity || undefined}
-          onChange={(e) => setQuantity(Math.min(Math.max(1, Number(e.target.value) || 1), maxQuantity || 99))}
+          onChange={(e) => {
+            const raw = Math.max(step, Number(e.target.value) || step);
+            const rounded = Math.round(raw / step) * step;
+            setQuantity(Math.min(rounded, maxQuantity || step));
+          }}
         />
         <button
           type="button"
           className="btn-mc px-3"
-          onClick={() => setQuantity((q) => Math.min(maxQuantity || 99, q + 1))}
+          onClick={() => setQuantity((q) => Math.min(maxQuantity || step, q + step))}
         >
           +
         </button>

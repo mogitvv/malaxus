@@ -73,7 +73,7 @@ export default function CartPage(): JSX.Element {
         product_id: item.productId,
         product_name: item.name,
         quantity: item.quantity,
-        unit_price_diamonds: item.unitPriceDiamonds,
+        unit_price_diamonds: item.unitPriceDiamonds / item.amount,
       })),
     );
 
@@ -119,7 +119,7 @@ export default function CartPage(): JSX.Element {
 
       <div className="mc-panel p-3 flex flex-col gap-2">
         {items.map((item) => {
-          const subtotal = item.unitPriceDiamonds * item.quantity;
+          const subtotal = (item.unitPriceDiamonds / item.amount) * item.quantity;
           return (
             <div
               key={item.productId}
@@ -139,7 +139,7 @@ export default function CartPage(): JSX.Element {
                 <button
                   type="button"
                   className="btn-mc px-2 py-1 text-[10px]"
-                  onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                  onClick={() => updateQuantity(item.productId, item.quantity - item.amount)}
                 >
                   −
                 </button>
@@ -147,7 +147,7 @@ export default function CartPage(): JSX.Element {
                 <button
                   type="button"
                   className="btn-mc px-2 py-1 text-[10px]"
-                  onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                  onClick={() => updateQuantity(item.productId, item.quantity + item.amount)}
                 >
                   +
                 </button>
