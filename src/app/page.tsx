@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { JSX } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { mapCategory, mapProduct } from "@/lib/products";
-import { ProductCard } from "@/components/shop/ProductCard";
+import { ShopProductGrid } from "@/components/shop/ShopProductGrid";
 
 interface ShopPageProps {
   searchParams: Promise<{ q?: string; cat?: string }>;
@@ -68,15 +68,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps): Promise
         </p>
       )}
 
-      {visible.length === 0 ? (
-        <p className="text-sm text-muted">Keine Artikel gefunden.</p>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {visible.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
-      )}
+      <ShopProductGrid initialProducts={visible} />
     </div>
   );
 }
