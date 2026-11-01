@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState, type FormEvent, type JSX } from "react";
-import type { Category, Product, ProductType, ProductUnit } from "@/lib/types";
-import { unitLabels } from "@/lib/types";
+import type { Category, Product, ProductType } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { InventorySlot } from "@/components/ui/InventorySlot";
 import { ProductIcon } from "@/components/icons/ProductIcon";
@@ -16,7 +15,8 @@ interface FormState {
   categoryId: string;
   description: string;
   price: number;
-  unit: ProductUnit;
+  amount: number;
+  unit: string;
   type: ProductType;
   stock: number;
 }
@@ -26,7 +26,8 @@ const emptyForm = (categories: Category[]): FormState => ({
   categoryId: categories[0]?.id ?? "",
   description: "",
   price: 1,
-  unit: "piece",
+  amount: 1,
+  unit: "Stück",
   type: "stock",
   stock: 10,
 });
@@ -65,6 +66,7 @@ export function ProductManager({
       categoryId: p.categoryId,
       description: p.description,
       price: p.priceDiamonds,
+      amount: p.amount,
       unit: p.unit,
       type: p.type,
       stock: p.stockQuantity ?? 10,
@@ -114,6 +116,7 @@ export function ProductManager({
             description: form.description,
             price_diamonds: form.price,
             unit: form.unit,
+            amount: form.amount,
             type: form.type,
             stock_quantity: form.type === "stock" ? form.stock : null,
             low_stock_threshold: form.type === "stock" ? 5 : null,
@@ -136,6 +139,7 @@ export function ProductManager({
             description: form.description,
             priceDiamonds: form.price,
             unit: form.unit,
+            amount: form.amount,
             type: form.type,
             stockQuantity: form.type === "stock" ? form.stock : null,
             lowStockThreshold: form.type === "stock" ? 5 : null,
@@ -152,6 +156,7 @@ export function ProductManager({
           description: form.description,
           price_diamonds: form.price,
           unit: form.unit,
+          amount: form.amount,
           type: form.type,
           stock_quantity: form.type === "stock" ? form.stock : null,
         };
@@ -170,6 +175,7 @@ export function ProductManager({
                   description: form.description,
                   priceDiamonds: form.price,
                   unit: form.unit,
+                  amount: form.amount,
                   type: form.type,
                   stockQuantity: form.type === "stock" ? form.stock : null,
                   imageUrl: imageUrl ?? p.imageUrl,
@@ -256,49 +262,94 @@ export function ProductManager({
               </p>
             </div>
           </div>
-          <select
-            className="input-mc"
-            value={form.categoryId}
-            onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-          >
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <input
-            placeholder="Beschreibung"
-            className="input-mc sm:col-span-2"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-          <input
-            type="number"
-            min={1}
-            placeholder="Preis in Diamanten"
-            className="input-mc"
-            value={form.price}
-            onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-          />
-          <select className="input-mc" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value as ProductUnit })}>
-            <option value="piece">Stück</option>
-            <option value="stack64">Stack (64)</option>
-            <option value="shulker">Shulker</option>
-          </select>
-          <select className="input-mc" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as ProductType })}>
-            <option value="stock">Lagerartikel</option>
-            <option value="on_request">Auf Anfrage</option>
-          </select>
-          {form.type === "stock" && (
-            <input
-              type="number"
-              min={0}
-              placeholder="Lagerbestand"
+          <label className="text-[11px] text-muted flex flex-col gap-1">
+            Kategorie
+            <select
               className="input-mc"
-              value={form.stock}
-              onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
+              value={form.categoryId}
+              onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-[11px] text-muted flex flex-col gap-1">
+            Verfügbarkeit
+            <select className="input-mc" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as ProductType })}>
+              <option value="stock">Lagerartikel</option>
+              <option value="on_request">Auf Anfrage</option>
+            </select>
+          </label>
+          <label className="text-[11px] text-muted flex flex-col gap-1 sm:col-span-2">
+            Beschreibung
+            <input
+              placeholder="Beschreibung"
+              className="input-mc"
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
+          </label>
+
+          <div className="sm:col-span-2 mc-panel-dark p-3 flex flex-col gap-2">
+            <p className="text-[11px] text-muted">
+              Preis: wie viele Diamanten kosten wie viele Einheiten? (z. B. 1 Diamant für 6 Stück Redstone-Staub,
+              oder 5 Diamanten für 1 Diamantschwert)
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="text-[11px] text-muted flex flex-col gap-1">
+                Diamanten
+                <input
+                  type="number"
+                  min={1}
+                  className="input-mc w-24"
+                  value={form.price}
+                  onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+                />
+              </label>
+              <span className="text-xs pb-2">für</span>
+              <label className="text-[11px] text-muted flex flex-col gap-1">
+                Menge
+                <input
+                  type="number"
+                  min={1}
+                  className="input-mc w-24"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })}
+                />
+              </label>
+              <label className="text-[11px] text-muted flex flex-col gap-1 flex-1 min-w-[120px]">
+                Einheit (z. B. Stück, Stapel, Barren)
+                <input
+                  className="input-mc"
+                  value={form.unit}
+                  onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                />
+              </label>
+            </div>
+            <p className="text-xs flex items-center gap-1.5">
+              Vorschau:
+              <span className="flex items-center gap-1 font-semibold">
+                <DiamondIcon size={14} />
+                {form.price}
+              </span>
+              für {form.amount} {form.unit || "Stück"}
+            </p>
+          </div>
+
+          {form.type === "stock" && (
+            <label className="text-[11px] text-muted flex flex-col gap-1">
+              Lagerbestand
+              <input
+                type="number"
+                min={0}
+                className="input-mc"
+                value={form.stock}
+                onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })}
+              />
+            </label>
           )}
           <div className="sm:col-span-2 flex flex-col gap-1">
             <span className="text-[11px] text-muted">Produktbild (optional, wird automatisch verkleinert)</span>
@@ -351,7 +402,9 @@ export function ProductManager({
                 <DiamondIcon size={14} />
                 {p.priceDiamonds}
               </span>
-              <span className="text-[11px] text-muted w-20">{unitLabels[p.unit]}</span>
+              <span className="text-[11px] text-muted w-24">
+                für {p.amount} {p.unit}
+              </span>
 
               {p.type === "on_request" ? (
                 <span className="btn-mc btn-mc-gold text-[9px]">Auf Anfrage</span>

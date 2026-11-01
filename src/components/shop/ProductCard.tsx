@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState, type JSX } from "react";
 import type { Product } from "@/lib/types";
-import { unitLabels } from "@/lib/types";
 import { InventorySlot } from "@/components/ui/InventorySlot";
 import { Button } from "@/components/ui/Button";
 import { ProductIcon } from "@/components/icons/ProductIcon";
@@ -17,7 +16,13 @@ export function ProductCard({ product }: { product: Product }): JSX.Element {
 
   function handleAdd() {
     const result = addItem(
-      { productId: product.id, name: product.name, unitPriceDiamonds: product.priceDiamonds, unit: product.unit },
+      {
+        productId: product.id,
+        name: product.name,
+        unitPriceDiamonds: product.priceDiamonds,
+        unit: product.unit,
+        amount: product.amount,
+      },
       1,
     );
     if (!result.ok) {
@@ -51,7 +56,9 @@ export function ProductCard({ product }: { product: Product }): JSX.Element {
           <DiamondIcon size={16} />
           {product.priceDiamonds}
         </span>
-        <span className="text-[10px] text-muted">{unitLabels[product.unit]}</span>
+        <span className="text-[10px] text-muted">
+          für {product.amount} {product.unit}
+        </span>
       </div>
 
       {product.type === "on_request" ? (

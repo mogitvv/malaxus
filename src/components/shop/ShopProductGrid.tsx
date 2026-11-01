@@ -13,6 +13,7 @@ interface ProductsPayload {
   description: string;
   price_diamonds: number;
   unit: string;
+  amount: number;
   type: string;
   stock_quantity: number | null;
   low_stock_threshold: number | null;

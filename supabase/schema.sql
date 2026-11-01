@@ -101,7 +101,8 @@ create table if not exists public.products (
   category_id uuid references public.categories(id) on delete set null,
   description text not null default '',
   price_diamonds numeric not null default 1,
-  unit text not null default 'piece' check (unit in ('piece', 'stack64', 'shulker')),
+  unit text not null default 'Stück',
+  amount int not null default 1,
   type text not null default 'stock' check (type in ('stock', 'on_request')),
   stock_quantity int,
   low_stock_threshold int,
@@ -111,6 +112,17 @@ create table if not exists public.products (
 );
 
 alter table public.products enable row level security;
+
+-- Migration für bestehende Datenbanken: "amount" ergänzen und die feste
+-- Einheiten-Auswahl (piece/stack64/shulker) durch frei beschriftbaren Text ersetzen.
+alter table public.products add column if not exists amount int not null default 1;
+alter table public.products drop constraint if exists products_unit_check;
+alter table public.products alter column unit set default 'Stück';
+
+update public.products
+set amount = case unit when 'stack64' then 64 when 'shulker' then 1728 else 1 end,
+    unit = 'Stück'
+where unit in ('piece', 'stack64', 'shulker');
 
 drop policy if exists "products_select_visible_or_admin" on public.products;
 create policy "products_select_visible_or_admin" on public.products
@@ -159,7 +171,7 @@ create policy "orders_select_own_or_admin" on public.orders
 
 drop policy if exists "orders_insert_own" on public.orders;
 create policy "orders_insert_own" on public.orders
-  for insert with check (auth.uid() = user_id);
+  for insert with check (auth.uid() = user_id or public.is_admin());
 
 drop policy if exists "orders_update_own_or_admin" on public.orders;
 create policy "orders_update_own_or_admin" on public.orders
@@ -185,7 +197,7 @@ create policy "order_items_select_via_order" on public.order_items
 drop policy if exists "order_items_insert_via_order" on public.order_items;
 create policy "order_items_insert_via_order" on public.order_items
   for insert with check (
-    exists (select 1 from public.orders o where o.id = order_id and o.user_id = auth.uid())
+    exists (select 1 from public.orders o where o.id = order_id and (o.user_id = auth.uid() or public.is_admin()))
   );
 
 -- Lagerbestand automatisch reduzieren, sobald eine Bestellung angenommen wird
@@ -211,6 +223,37 @@ drop trigger if exists on_order_accepted on public.orders;
 create trigger on_order_accepted
   after update on public.orders
   for each row execute function public.handle_order_accepted();
+
+-- ------------------------------------------------------------------
+-- product_requests: Spieler können Artikel anfragen, die es noch nicht im Shop gibt.
+-- Admin legt einen Preis fest, daraus wird automatisch eine Bestellung für die
+-- anfragende Person erstellt (optional auch dauerhaft als Produkt in den Shop aufgenommen).
+-- ------------------------------------------------------------------
+create table if not exists public.product_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  item_name text not null,
+  quantity int not null default 1,
+  note text,
+  status text not null default 'open' check (status in ('open', 'fulfilled', 'rejected')),
+  price_diamonds numeric,
+  order_id uuid references public.orders(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.product_requests enable row level security;
+
+drop policy if exists "product_requests_select_own_or_admin" on public.product_requests;
+create policy "product_requests_select_own_or_admin" on public.product_requests
+  for select using (auth.uid() = user_id or public.is_admin());
+
+drop policy if exists "product_requests_insert_own" on public.product_requests;
+create policy "product_requests_insert_own" on public.product_requests
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "product_requests_update_admin" on public.product_requests;
+create policy "product_requests_update_admin" on public.product_requests
+  for update using (public.is_admin());
 
 -- ------------------------------------------------------------------
 -- farms + farm_deliveries
@@ -248,8 +291,36 @@ create policy "farm_deliveries_admin_only" on public.farm_deliveries for all usi
 -- ------------------------------------------------------------------
 -- Realtime: Admin-Board und Kunden-Konto hören live auf Änderungen
 -- ------------------------------------------------------------------
-alter publication supabase_realtime add table public.orders;
-alter publication supabase_realtime add table public.order_items;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'orders'
+  ) then
+    alter publication supabase_realtime add table public.orders;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'order_items'
+  ) then
+    alter publication supabase_realtime add table public.order_items;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'products'
+  ) then
+    alter publication supabase_realtime add table public.products;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'product_requests'
+  ) then
+    alter publication supabase_realtime add table public.product_requests;
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------
 -- Storage-Bucket für Produktbilder
@@ -277,36 +348,37 @@ insert into public.categories (name, slug) values
   ('Nahrung', 'nahrung'),
   ('Redstone', 'redstone'),
   ('Werkzeuge', 'werkzeuge'),
-  ('Seltenes', 'seltenes')
+  ('Seltenes', 'seltenes'),
+  ('Verzauberungen', 'verzauberungen')
 on conflict (slug) do nothing;
 
-insert into public.products (name, category_id, description, price_diamonds, unit, type, stock_quantity, low_stock_threshold)
-select 'Eichenholz-Planken', id, 'Klassisches Bauholz für Häuser, Böden und Möbel.', 1, 'stack64', 'stock', 40, 10
+insert into public.products (name, category_id, description, price_diamonds, unit, amount, type, stock_quantity, low_stock_threshold)
+select 'Eichenholz-Planken', id, 'Klassisches Bauholz für Häuser, Böden und Möbel.', 1, 'Stück', 64, 'stock', 40, 10
 from public.categories where slug = 'baubloecke'
 on conflict do nothing;
 
-insert into public.products (name, category_id, description, price_diamonds, unit, type, stock_quantity, low_stock_threshold)
-select 'Eisen-Barren', id, 'Geschmolzenes Eisen für Werkzeuge, Rüstung und Redstone-Technik.', 4, 'stack64', 'stock', 20, 5
+insert into public.products (name, category_id, description, price_diamonds, unit, amount, type, stock_quantity, low_stock_threshold)
+select 'Eisen-Barren', id, 'Geschmolzenes Eisen für Werkzeuge, Rüstung und Redstone-Technik.', 4, 'Stück', 64, 'stock', 20, 5
 from public.categories where slug = 'erze'
 on conflict do nothing;
 
-insert into public.products (name, category_id, description, price_diamonds, unit, type, stock_quantity, low_stock_threshold)
-select 'Steak', id, 'Saftiges gebratenes Steak, stillt den Hunger zuverlässig.', 2, 'stack64', 'stock', 30, 8
+insert into public.products (name, category_id, description, price_diamonds, unit, amount, type, stock_quantity, low_stock_threshold)
+select 'Steak', id, 'Saftiges gebratenes Steak, stillt den Hunger zuverlässig.', 2, 'Stück', 64, 'stock', 30, 8
 from public.categories where slug = 'nahrung'
 on conflict do nothing;
 
-insert into public.products (name, category_id, description, price_diamonds, unit, type, stock_quantity, low_stock_threshold)
-select 'Redstone-Staub', id, 'Für Schaltkreise, Fallen und automatische Türen.', 2, 'stack64', 'stock', 25, 10
+insert into public.products (name, category_id, description, price_diamonds, unit, amount, type, stock_quantity, low_stock_threshold)
+select 'Redstone-Staub', id, 'Für Schaltkreise, Fallen und automatische Türen.', 2, 'Stück', 64, 'stock', 25, 10
 from public.categories where slug = 'redstone'
 on conflict do nothing;
 
-insert into public.products (name, category_id, description, price_diamonds, unit, type, stock_quantity, low_stock_threshold)
-select 'Diamantschwert', id, 'Scharfe Klinge aus Diamant.', 5, 'piece', 'stock', 4, 2
+insert into public.products (name, category_id, description, price_diamonds, unit, amount, type, stock_quantity, low_stock_threshold)
+select 'Diamantschwert', id, 'Scharfe Klinge aus Diamant.', 5, 'Stück', 1, 'stock', 4, 2
 from public.categories where slug = 'werkzeuge'
 on conflict do nothing;
 
-insert into public.products (name, category_id, description, price_diamonds, unit, type, stock_quantity, low_stock_threshold)
-select 'Beacon', id, 'Strahlt einen weit sichtbaren Lichtstrahl aus und gibt Beacon-Effekte.', 15, 'piece', 'on_request', null, null
+insert into public.products (name, category_id, description, price_diamonds, unit, amount, type, stock_quantity, low_stock_threshold)
+select 'Beacon', id, 'Strahlt einen weit sichtbaren Lichtstrahl aus und gibt Beacon-Effekte.', 15, 'Stück', 1, 'on_request', null, null
 from public.categories where slug = 'seltenes'
 on conflict do nothing;
 

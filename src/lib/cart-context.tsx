@@ -2,13 +2,13 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { JSX, ReactNode } from "react";
-import type { ProductUnit } from "./types";
 
 export interface CartItem {
   productId: string;
   name: string;
   unitPriceDiamonds: number;
-  unit: ProductUnit;
+  unit: string;
+  amount: number;
   quantity: number;
 }
 

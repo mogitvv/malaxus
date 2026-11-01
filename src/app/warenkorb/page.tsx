@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState, type JSX } from "react";
 import { useCart } from "@/lib/cart-context";
-import { unitLabels } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { InventorySlot } from "@/components/ui/InventorySlot";
 import { ProductIcon } from "@/components/icons/ProductIcon";
@@ -133,7 +132,7 @@ export default function CartPage(): JSX.Element {
               <div className="flex-1">
                 <p className="text-sm font-semibold">{item.name}</p>
                 <p className="text-[11px] text-muted">
-                  {item.unitPriceDiamonds} ◆ pro {unitLabels[item.unit]}
+                  {item.unitPriceDiamonds} ◆ für {item.amount} {item.unit}
                 </p>
               </div>
               <div className="flex items-center gap-1">

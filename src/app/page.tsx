@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { mapCategory, mapProduct } from "@/lib/products";
 import { ShopProductGrid } from "@/components/shop/ShopProductGrid";
+import { RequestProductButton } from "@/components/shop/RequestProductButton";
 
 interface ShopPageProps {
   searchParams: Promise<{ q?: string; cat?: string }>;
@@ -20,6 +21,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps): Promise
 
   const categories = (categoryRows ?? []).map(mapCategory);
   const products = (productRows ?? []).map(mapProduct);
+  const categoriesWithProducts = categories.filter((c) => products.some((p) => p.categoryId === c.id));
 
   const visible = products.filter((p) => {
     if (cat && p.categoryId !== cat) return false;
@@ -44,22 +46,25 @@ export default async function ShopPage({ searchParams }: ShopPageProps): Promise
         </p>
       </section>
 
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href="/"
-          className={`btn-mc text-[10px] px-3 ${!cat ? "btn-mc-blue" : ""}`}
-        >
-          Alle
-        </Link>
-        {categories.map((c) => (
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
-            key={c.id}
-            href={`/?cat=${c.id}`}
-            className={`btn-mc text-[10px] px-3 ${cat === c.id ? "btn-mc-blue" : ""}`}
+            href="/"
+            className={`btn-mc text-[10px] px-3 ${!cat ? "btn-mc-blue" : ""}`}
           >
-            {c.name}
+            Alle
           </Link>
-        ))}
+          {categoriesWithProducts.map((c) => (
+            <Link
+              key={c.id}
+              href={`/?cat=${c.id}`}
+              className={`btn-mc text-[10px] px-3 ${cat === c.id ? "btn-mc-blue" : ""}`}
+            >
+              {c.name}
+            </Link>
+          ))}
+        </div>
+        <RequestProductButton />
       </div>
 
       {query && (

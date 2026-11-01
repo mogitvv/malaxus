@@ -18,7 +18,13 @@ export function AddToCartPanel({ product }: { product: Product }): JSX.Element {
 
   function handleAdd() {
     const result = addItem(
-      { productId: product.id, name: product.name, unitPriceDiamonds: product.priceDiamonds, unit: product.unit },
+      {
+        productId: product.id,
+        name: product.name,
+        unitPriceDiamonds: product.priceDiamonds,
+        unit: product.unit,
+        amount: product.amount,
+      },
       quantity,
     );
     if (result.ok) {

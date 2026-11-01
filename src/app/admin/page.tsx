@@ -2,22 +2,25 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
-import type { Category, Order, OrderStatus, Product } from "@/lib/types";
+import type { Category, Order, OrderStatus, Product, ProductRequest } from "@/lib/types";
 import { statusLabels } from "@/lib/types";
 import { mapOrder } from "@/lib/orders";
 import { mapCategory, mapProduct } from "@/lib/products";
+import { mapProductRequest } from "@/lib/requests";
 import { Panel } from "@/components/ui/Panel";
 import { OrderBoard } from "./OrderBoard";
 import { ProductManager } from "./ProductManager";
 import { UserManager } from "./UserManager";
 import { PaymentManager } from "./PaymentManager";
+import { RequestManager } from "./RequestManager";
 import { BellIcon, ChestIcon, AnvilIcon, MinecartIcon, CheckIcon, XMarkIcon } from "@/components/icons/PixelIcons";
 import { useAuth } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
 
-type Tab = "bestellungen" | "produkte" | "zahlung" | "benutzer";
+type Tab = "bestellungen" | "produkte" | "zahlung" | "benutzer" | "anforderungen";
 
 const ORDER_SELECT = "*, order_items(*), profiles(ingame_name)";
+const REQUEST_SELECT = "*, profiles(ingame_name)";
 
 export default function AdminPage(): JSX.Element {
   const { role } = useAuth();
@@ -26,6 +29,7 @@ export default function AdminPage(): JSX.Element {
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [requests, setRequests] = useState<ProductRequest[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [newBadge, setNewBadge] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -81,6 +85,11 @@ export default function AdminPage(): JSX.Element {
     if (data) setProducts(data.map(mapProduct));
   }, [supabase]);
 
+  const loadRequests = useCallback(async () => {
+    const { data } = await supabase.from("product_requests").select(REQUEST_SELECT).order("created_at", { ascending: false });
+    if (data) setRequests(data.map(mapProductRequest));
+  }, [supabase]);
+
   useEffect(() => {
     if (role !== "admin") return;
 
@@ -91,17 +100,19 @@ export default function AdminPage(): JSX.Element {
       .then(({ data }) => data && setCategories(data.map(mapCategory)));
     loadProducts();
     loadOrders();
+    loadRequests();
 
     const channel = supabase
       .channel("admin-orders")
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => loadOrders())
       .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => loadOrders())
+      .on("postgres_changes", { event: "*", schema: "public", table: "product_requests" }, () => loadRequests())
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [role, supabase, loadOrders, loadProducts]);
+  }, [role, supabase, loadOrders, loadProducts, loadRequests]);
 
   const counts = useMemo(() => {
     const base: Record<OrderStatus, number> = {
@@ -172,10 +183,13 @@ export default function AdminPage(): JSX.Element {
     },
   ];
 
+  const openRequestCount = useMemo(() => requests.filter((r) => r.status === "open").length, [requests]);
+
   const tabs: { key: Tab; label: string; badge?: number }[] = [
     { key: "bestellungen", label: "Bestellungen" },
     { key: "produkte", label: "Produkte" },
     { key: "zahlung", label: "Zahlung", badge: unpaidCount },
+    { key: "anforderungen", label: "Anforderungen", badge: openRequestCount },
     { key: "benutzer", label: "Benutzer" },
   ];
 
@@ -270,6 +284,7 @@ export default function AdminPage(): JSX.Element {
       )}
       {tab === "produkte" && <ProductManager products={products} categories={categories} onChange={setProducts} />}
       {tab === "zahlung" && <PaymentManager orders={orders} onChange={persistOrder} />}
+      {tab === "anforderungen" && <RequestManager requests={requests} onChange={setRequests} />}
       {tab === "benutzer" && <UserManager />}
     </div>
   );

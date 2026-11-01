@@ -1,5 +1,4 @@
 export type ProductType = "stock" | "on_request";
-export type ProductUnit = "piece" | "stack64" | "shulker";
 export type UserRole = "customer" | "admin";
 
 export type OrderStatus =
@@ -23,7 +22,10 @@ export interface Product {
   categoryId: string;
   description: string;
   priceDiamonds: number;
-  unit: ProductUnit;
+  /** Frei vom Admin beschriftete Einheit, z. B. "Stück", "Stapel", "Rüstungsteil". */
+  unit: string;
+  /** Wie viele Einheiten man für priceDiamonds bekommt, z. B. 6 bei "1 Diamant für 6 Stück". */
+  amount: number;
   type: ProductType;
   /** nur bei type "stock" relevant, sonst null */
   stockQuantity: number | null;
@@ -54,6 +56,21 @@ export interface Order {
   reminderSentAt?: string;
 }
 
+export type ProductRequestStatus = "open" | "fulfilled" | "rejected";
+
+export interface ProductRequest {
+  id: string;
+  userId: string;
+  ingameName: string;
+  itemName: string;
+  quantity: number;
+  note?: string;
+  status: ProductRequestStatus;
+  priceDiamonds: number | null;
+  orderId: string | null;
+  createdAt: string;
+}
+
 export interface Farm {
   id: string;
   name: string;
@@ -61,12 +78,6 @@ export interface Farm {
   productName: string;
   dailyAmountEstimate: string;
 }
-
-export const unitLabels: Record<ProductUnit, string> = {
-  piece: "Stück",
-  stack64: "Stack (64)",
-  shulker: "Shulker",
-};
 
 export const statusLabels: Record<OrderStatus, string> = {
   received: "Eingegangen",

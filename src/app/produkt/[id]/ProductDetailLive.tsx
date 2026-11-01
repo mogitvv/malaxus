@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type JSX } from "react";
 import type { Product } from "@/lib/types";
-import { unitLabels } from "@/lib/types";
 import { mapProduct } from "@/lib/products";
 import { createClient } from "@/lib/supabase/client";
 import { InventorySlot } from "@/components/ui/InventorySlot";
@@ -67,18 +66,20 @@ export function ProductDetailLive({
             <DiamondIcon size={20} />
             {product.priceDiamonds}
           </span>
-          <span className="text-muted">pro {unitLabels[product.unit]}</span>
+          <span className="text-muted">
+            für {product.amount} {product.unit}
+          </span>
         </div>
 
         {product.type === "on_request" ? (
           <span className="btn-mc btn-mc-gold inline-block self-start text-[10px]">Auf Anfrage – wir bestätigen im Admin-Board</span>
         ) : lowStock ? (
           <span className="inline-flex items-center gap-1.5 self-start text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-600">
-            Nur noch <strong className="text-sm">{product.stockQuantity}</strong> verfügbar – knapper Bestand!
+            Lagerbestand: <strong className="text-sm">{product.stockQuantity}</strong> – knapp!
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 self-start text-xs px-2.5 py-1 rounded-full" style={{ background: "var(--mc-subtle)" }}>
-            <strong className="text-sm">{product.stockQuantity}</strong> auf Lager
+            Lagerbestand: <strong className="text-sm">{product.stockQuantity}</strong>
           </span>
         )}
 

@@ -1,4 +1,4 @@
-import type { Category, Product, ProductType, ProductUnit } from "./types";
+import type { Category, Product, ProductType } from "./types";
 
 interface DbProduct {
   id: string;
@@ -7,6 +7,7 @@ interface DbProduct {
   description: string;
   price_diamonds: number;
   unit: string;
+  amount: number;
   type: string;
   stock_quantity: number | null;
   low_stock_threshold: number | null;
@@ -27,7 +28,8 @@ export function mapProduct(row: DbProduct): Product {
     categoryId: row.category_id ?? "",
     description: row.description,
     priceDiamonds: Number(row.price_diamonds),
-    unit: row.unit as ProductUnit,
+    unit: row.unit,
+    amount: Number(row.amount),
     type: row.type as ProductType,
     stockQuantity: row.stock_quantity,
     lowStockThreshold: row.low_stock_threshold,
