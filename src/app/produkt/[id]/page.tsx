@@ -7,8 +7,6 @@ import { ProductIcon } from "@/components/icons/ProductIcon";
 import { DiamondIcon } from "@/components/icons/PixelIcons";
 import { AddToCartPanel } from "./AddToCartPanel";
 
-export const instant = false;
-
 interface ProductPageProps {
   params: Promise<{ id: string }>;
 }

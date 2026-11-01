@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  /* Cache Components aus: hängt sich in Cloudflares Workers-Laufzeitumgebung auf
+     (Next.js warnt selbst, dass setTimeout() dort nicht wie erwartet funktioniert). */
   turbopack: {
     rules: {
       "*.css": {

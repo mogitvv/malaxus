@@ -3,8 +3,6 @@ import type { JSX } from "react";
 import { categories, products } from "@/lib/mock-data";
 import { ProductCard } from "@/components/shop/ProductCard";
 
-export const instant = false;
-
 interface ShopPageProps {
   searchParams: Promise<{ q?: string; cat?: string }>;
 }
